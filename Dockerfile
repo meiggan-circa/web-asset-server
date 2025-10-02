@@ -25,13 +25,4 @@ COPY --chown=specify:specify *.py views ./
 
 RUN mkdir -p /home/specify/attachments/
 
-RUN echo \
-        "import os" \
-        "\nSERVER = 'paste'" \
-        "\nSERVER_NAME = os.environ['SERVER_NAME']" \
-        "\nSERVER_PORT = int(os.getenv('SERVER_PORT', 8080))" \
-        "\nKEY = os.environ['ATTACHMENT_KEY']" \
-        "\nDEBUG = os.getenv('DEBUG_MODE', 'false').lower() == 'true'" \
-        >> settings.py
-
 CMD ["ve/bin/python", "server.py"]
