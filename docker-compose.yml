@@ -1,8 +1,8 @@
-services: 
-  asset-server:
+services:
+  app:
+    container_name: specify-asset-server
     restart: unless-stopped
-    build:
-      context: ./.
+    build: .
     init: true
     volumes:
       - "attachments:/home/specify/attachments"
@@ -11,18 +11,9 @@ services:
       # to the settings file during the Build process (e.g., parsing and 
       # "applying" the environment variables)
       # - './settings.py:/home/specify/settings.py'
-    environment:
-      - SERVER_NAME=host.docker.internal
-      - SERVER_PORT=8080
-      - ATTACHMENT_KEY=test_attachment_key
-      - DEBUG_MODE=true
+    env_file: .env
     ports:
-    # Instead of exposing the host machine's port, you can add this container
-    # to an existing Docker network (e.g., one that the Specify 7 instance is 
-    # on)
-    # See:
-    # https://docs.docker.com/compose/how-tos/networking/#use-an-existing-network
-      - "8080:8080"
+      - "8100:80"
 
 volumes:
-  attachments:
+  attachments: # the asset-servers attachment files
