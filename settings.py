@@ -1,7 +1,10 @@
-# Sample Specify web asset server settings.
+import os
+from dotenv import load_dotenv
+load_dotenv()
 
 # Turns on bottle.py debugging, module reloading and printing some
 # information to console.
+# DEBUG = False
 DEBUG = True
 
 # This secret key is used to generate authentication tokens for requests.
@@ -10,12 +13,12 @@ DEBUG = True
 # Set KEY to None to disable security. This is NOT recommended since doing so
 # will allow anyone on the internet to use the attachment server to store
 # arbitrary files.
-KEY = 'test_attachment_key'
+KEY = os.environ["KEY"]
 
 # Auth token timestamp must be within this many seconds of server time
 # in order to be considered valid. This prevents replay attacks.
 # Set to None to disable time validation.
-TIME_TOLERANCE = 150
+TIME_TOLERANCE = 600
 
 # Set this to True to require authentication for downloads in addition
 # to uploads and deletes.  Static file access, if enabled, is not
@@ -24,31 +27,26 @@ REQUIRE_KEY_FOR_GET = False
 
 # This is required for use with the Web Portal.
 # Enables the 'getfileref' and '/static/...' URLs.
-ALLOW_STATIC_FILE_ACCESS = True
+ALLOW_STATIC_FILE_ACCESS = False
 
 # These values are interpolated into the web_asset_store.xml resource
 # so the client knows how to talk to the server.
-HOST = 'localhost'
-PORT = 8080
-
+HOST = os.environ["HOST"]
+PORT = int(os.environ["PORT"])
 SERVER_NAME = HOST
 SERVER_PORT = PORT
-
-# Port the development test server should listen on.
-DEVELOPMENT_PORT = PORT
+DEVELOPMENT_PORT = PORT # Port the development test server should listen on.
 
 # Map collection names to directories.  Set to None to store
 # everything in the same originals and thumbnail directories.  This is
 # recommended unless some provision is made to allow attachments for
 # items scoped above collections to be found.
 
-# COLLECTION_DIRS = {
+COLLECTION_DIRS = {
 #     # 'COLLECTION_NAME': 'DIRECTORY_NAME',
-#     'KUFishvoucher': 'Ichthyology',
-#     'KUFishtissue': 'Ichthyology',
-# }
-
-COLLECTION_DIRS = None
+    'Field Collection': 'field-collection',
+    'Specimen': 'specimen',
+}
 
 # Base directory for all attachments.
 BASE_DIR = '/home/specify/attachments/'
@@ -58,9 +56,14 @@ THUMB_DIR = 'thumbnails'
 ORIG_DIR = 'originals'
 
 # Set of mime types that the server will try to thumbnail.
-CAN_THUMBNAIL = {'image/jpeg', 'image/gif', 'image/png', 'image/tiff', 'application/pdf'}
+CAN_THUMBNAIL = {
+    'image/jpeg',
+    'image/gif',
+    'image/png',
+    'image/tiff',
+    'application/pdf'
+}
 
 # What HTTP server to use for stand-alone operation.
 # SERVER = 'paste' # Requires python-paste package. Fast, and seems to work good.
 SERVER = 'wsgiref'  # For testing. Requires no extra packages.
-
