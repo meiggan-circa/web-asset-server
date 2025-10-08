@@ -13,6 +13,7 @@ import time
 from sh import convert
 
 import settings
+import requests
 from bottle import (
     Response,
     request,
@@ -50,6 +51,19 @@ def make_hdfs_path(coll, thumb, filename=""):
     if not hdfs_path.startswith('/'):
         hdfs_path = '/' + hdfs_path
     return hdfs_path
+
+
+def hdfs_dir_exists(hdfs_dir):
+    response = requests.get(
+        f"http://{settings.BIIMS_API}/api/storage/exists?path={hdfs_dir}"
+    )
+    return response.ok
+
+
+def hdfs_dir_create(hdfs_dir):
+    requests.post(
+        f"http://{settings.BIIMS_API}/api/storage/mkdir/", data={"path": hdfs_dir}
+    )
 
 
 def generate_token(timestamp, filename):
