@@ -14,8 +14,15 @@ from sh import convert
 
 import settings
 from bottle import (
-    Response, request, response, static_file, template, abort,
-    HTTPResponse, route)
+    Response,
+    request,
+    response,
+    static_file,
+    template,
+    abort,
+    HTTPResponse,
+    route
+)
 
 
 def log(msg):
@@ -23,21 +30,26 @@ def log(msg):
         print(msg)
 
 
-def get_rel_path(coll, thumb_p):
-    """Return originals or thumbnails subdirectory of the main
-    attachments directory for the given collection.
+def make_hdfs_path(coll, thumb, filename=""):
     """
-    type_dir = settings.THUMB_DIR if thumb_p else settings.ORIG_DIR
-
-    if settings.COLLECTION_DIRS is None:
-        return type_dir
-
+    Build HDFS path for given collection, thumb/orig, and filename.
+    """
     try:
         coll_dir = settings.COLLECTION_DIRS[coll]
     except KeyError:
-        abort(404, "Unknown collection: %r" % coll)
+        abort(404, f"Unknown collection: {coll!r}")
 
-    return path.join(coll_dir, type_dir)
+    subdir = settings.THUMB_DIR if thumb else settings.ORIG_DIR
+
+    parts = [settings.BASE_DIR, coll_dir, subdir]
+    if filename:
+        parts.append(filename)
+
+    hdfs_path = '/'.join(p.strip('/') for p in parts)
+    # Ensure it starts with /
+    if not hdfs_path.startswith('/'):
+        hdfs_path = '/' + hdfs_path
+    return hdfs_path
 
 
 def generate_token(timestamp, filename):
@@ -368,6 +380,10 @@ def main_page():
 
 if __name__ == '__main__':
     from bottle import run
-
-    run(host='0.0.0.0', port=settings.PORT, server=settings.SERVER,
-        debug=settings.DEBUG, reloader=settings.DEBUG)
+    run(
+        host='0.0.0.0',
+        port=settings.PORT,
+        server=settings.SERVER,
+        debug=settings.DEBUG,
+        reloader=settings.DEBUG
+    )
