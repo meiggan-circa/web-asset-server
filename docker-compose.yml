@@ -1,16 +1,26 @@
 services:
-  app:
-    container_name: specify-asset-server
-    restart: unless-stopped
-    build: .
-    init: true
-    volumes:
-      - "attachments:/home/specify/attachments"
+
+  # original:
+  #   container_name: specify-asset-server-original
+  #   restart: unless-stopped
+  #   image: web-asset-server-original
+  #   init: true
+  #  volumes:
+  #    - "attachments:/home/specify/attachments"
       # If you need to use the settings.py file, uncomment the following line.
       # On container start-up, this bind mount will overwrite the changes made
       # to the settings file during the Build process (e.g., parsing and 
       # "applying" the environment variables)
       # - './settings.py:/home/specify/settings.py'
+  #   env_file: .env
+  #   ports:
+  #     - "8100:80"
+
+  dev:
+    container_name: specify-asset-server-dev
+    restart: unless-stopped
+    build: .
+    init: true
     env_file: .env
     ports:
       - "8100:80"
