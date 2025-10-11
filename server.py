@@ -277,22 +277,27 @@ def fileupload_options():
 @allow_cross_origin
 @require_token('store')
 def fileupload():
-    """Accept original file uploads and store them in the proper
-    attchment subdirectory.
+    """Accept original file uploads and store them in HDFS
     """
     thumb_p = (request.forms['type'] == "T")
-    storename = request.forms.store
-    basepath = path.join(settings.BASE_DIR, get_rel_path(request.forms.coll, thumb_p))
-    pathname = path.join(basepath, storename)
+    filename = request.forms.store
+    collection = request.forms.coll
+    hdfs_dir = make_hdfs_path(collection, thumb_p)
+    store_path = make_hdfs_path(collection, thumb_p, filename)
 
     if thumb_p:
         return 'Ignoring thumbnail upload!'
 
-    if not path.exists(basepath):
-        mkdir(basepath)
+    if not hdfs_dir_exists(hdfs_dir):
+        hdfs_dir_create(hdfs_dir)
 
     upload = list(request.files.values())[0]
-    upload.save(pathname, overwrite=True)
+    
+    requests.post(
+        f"http://{settings.BIIMS_API}/api/storage/upload/",
+        data={'path':store_path},
+        files={'file': (filename, upload.file, upload.content_type)}
+    )
 
     response.content_type = 'text/plain; charset=utf-8'
     return 'Ok.'
