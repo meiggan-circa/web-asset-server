@@ -50,14 +50,14 @@ def make_hdfs_path(coll, thumb, filename=""):
     return hdfs_path
 
 
-def hdfs_dir_exists(hdfs_dir):
+def is_hdfs_path_exists(hdfs_path):
     response = requests.get(
-        f"http://{settings.BIIMS_API}/api/storage/exists?path={hdfs_dir}"
+        f"http://{settings.BIIMS_API}/api/storage/exists?path={hdfs_path}"
     )
     return response.ok
 
 
-def hdfs_dir_create(hdfs_dir):
+def create_hdfs_dir(hdfs_dir):
     requests.post(
         f"http://{settings.BIIMS_API}/api/storage/mkdir/", data={"path": hdfs_dir}
     )
@@ -285,8 +285,8 @@ def fileupload():
     if thumb_p:
         return 'Ignoring thumbnail upload!'
 
-    if not hdfs_dir_exists(hdfs_dir):
-        hdfs_dir_create(hdfs_dir)
+    if not is_hdfs_path_exists(hdfs_dir):
+        create_hdfs_dir(hdfs_dir)
 
     upload = list(request.files.values())[0]
     
