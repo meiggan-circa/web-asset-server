@@ -46,10 +46,7 @@ def make_hdfs_path(coll, thumb, filename=""):
     if filename:
         parts.append(filename)
 
-    hdfs_path = '/'.join(p.strip('/') for p in parts)
-    # Ensure it starts with /
-    if not hdfs_path.startswith('/'):
-        hdfs_path = '/' + hdfs_path
+    hdfs_path = '/'.join(p for p in parts)
     return hdfs_path
 
 
