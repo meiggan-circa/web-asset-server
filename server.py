@@ -339,22 +339,29 @@ def filedelete():
     if the original file does not exist. Any associated thumbnails will
     also be deleted.
     """
-    storename = request.forms.filename
-    basepath = path.join(settings.BASE_DIR, get_rel_path(request.forms.coll, thumb_p=False))
-    thumbpath = path.join(settings.BASE_DIR, get_rel_path(request.forms.coll, thumb_p=True))
+    collection = request.forms.coll
+    filename = request.forms.filename
+    orig_path = make_hdfs_path(collection, False, filename)
+    thumb_dir_path = make_hdfs_path(collection, True)
 
-    pathname = path.join(basepath, storename)
-    if not path.exists(pathname):
+    if not is_hdfs_path_exists(orig_path):
         abort(404)
 
-    log("Deleting %s" % pathname)
-    remove(pathname)
+    log(f"Deleting {orig_path}")
+    requests.post(
+        f"http://{settings.BIIMS_API}/api/storage/delete/", data={"path": orig_path}
+    )
 
-    prefix = storename.split('.att')[0]
-    pattern = path.join(thumbpath, prefix + '*')
-    log("Deleting thumbnails matching %s" % pattern)
-    for name in glob(pattern):
-        remove(name)
+    prefix = filename.split('.att')[0]
+    thumb_dir = requests.get(f"http://{settings.BIIMS_API}/api/storage/list?path={thumb_dir_path}").json()
+
+    for path_info in thumb_dir["data"]:
+        if not path_info["is_file"]:
+            continue
+        if path_info["basename"].startswith(prefix):
+            requests.post(
+                f"http://{settings.BIIMS_API}/api/storage/delete/", data={"path": path_info["path"]}
+            )
 
     response.content_type = 'text/plain; charset=utf-8'
     return 'Ok.'
