@@ -3,6 +3,7 @@ from functools import wraps
 from glob import glob
 from mimetypes import guess_type
 from os import path, mkdir, remove
+import tempfile
 from urllib.parse import quote
 from urllib.request import pathname2url
 
@@ -46,7 +47,10 @@ def make_hdfs_path(coll, thumb, filename=""):
     if filename:
         parts.append(filename)
 
-    hdfs_path = '/'.join(p for p in parts)
+    hdfs_path = '/'.join(p.strip('/') for p in parts)
+    # Ensure it starts with /
+    if not hdfs_path.startswith('/'):
+        hdfs_path = '/' + hdfs_path
     return hdfs_path
 
 
@@ -60,6 +64,23 @@ def is_hdfs_path_exists(hdfs_path):
 def create_hdfs_dir(hdfs_dir):
     requests.post(
         f"http://{settings.BIIMS_API}/api/storage/mkdir/", data={"path": hdfs_dir}
+    )
+
+
+def stream_hdfs_file(hdfs_path):
+    chunk_size = 1024
+    response = requests.get(
+        f"http://{settings.BIIMS_API}/api/storage/download?path={hdfs_path}",
+        stream=True,
+    )
+    return response.iter_content(chunk_size=chunk_size)
+
+
+def upload_to_hdfs(hdfs_path, file):
+    requests.post(
+        f"http://{settings.BIIMS_API}/api/storage/upload/",
+        data={'path':hdfs_path},
+        files=file
     )
 
 
@@ -181,55 +202,69 @@ def resolve_file():
     If the request is for a thumbnail and it has not been generated, do
     so before returning.
 
-    Returns the relative path to the requested file in the base
-    attachments directory.
+    Returns the relative path to the requested file in HDFS.
     """
     thumb_p = (request.query['type'] == "T")
-    storename = request.query.filename
-    relpath = get_rel_path(request.query.coll, thumb_p)
-
-    if not thumb_p:
-        return path.join(relpath, storename)
-
-    basepath = path.join(settings.BASE_DIR, relpath)
+    collection = request.query.coll
+    filename = request.query.filename
 
     scale = int(request.query.scale)
-    mimetype, encoding = guess_type(storename)
-
+    mimetype, encoding = guess_type(filename)
     assert mimetype in settings.CAN_THUMBNAIL
 
-    root, ext = path.splitext(storename)
-
+    root, ext = path.splitext(filename)
     if mimetype in ('application/pdf', 'image/tiff'):
         # use PNG for PDF thumbnails
         ext = '.png'
+    thumb_name = f"{root}_{scale}{ext}"
 
-    scaled_name = "%s_%d%s" % (root, scale, ext)
-    scaled_pathname = path.join(basepath, scaled_name)
+    orig_path = make_hdfs_path(collection, False, filename)
+    thumb_path = make_hdfs_path(collection, True, thumb_name)
 
-    if path.exists(scaled_pathname):
-        log("Serving previously scaled thumbnail")
-        return path.join(relpath, scaled_name)
+    if not thumb_p:
+        return orig_path
 
-    if not path.exists(basepath):
-        mkdir(basepath)
+    if is_hdfs_path_exists(thumb_path):
+        log(f"Serving cached thumbnail: {thumb_path}")
+        return thumb_path
 
-    orig_dir = path.join(settings.BASE_DIR, get_rel_path(request.query.coll, thumb_p=False))
-    orig_path = path.join(orig_dir, storename)
+    # To generate thumbnail, originals file is needed
+    # Fetch original from HDFS first
+    if not is_hdfs_path_exists(orig_path):
+        abort(404, f"Missing original: {orig_path}")
 
-    if not path.exists(orig_path):
-        abort(404, "Missing original: %s" % orig_path)
+    # Store original in local temp dir
+    tmp = tempfile.gettempdir()
+    local_orig = path.join(tmp, filename)
+    local_thumb = path.join(tmp, thumb_name)
 
-    input_spec = orig_path
-    convert_args = ('-resize', "%dx%d>" % (scale, scale))
+    with open(local_orig, 'wb') as f:
+        for chunk in stream_hdfs_file(orig_path):
+            f.write(chunk)
+
+    input_spec = local_orig
+    convert_args = ('-resize', f"{scale}x{scale}>")
+
     if mimetype == 'application/pdf':
         input_spec += '[0]'  # only thumbnail first page of PDF
         convert_args += ('-background', 'white', '-flatten')  # add white background to PDFs
 
-    log("Scaling thumbnail to %d" % scale)
-    convert(input_spec, *(convert_args + (scaled_pathname,)))
+    # Generate thumbnail locally then store in HDFS
+    log(f"Scaling thumbnail to {scale}")
+    convert(input_spec, *(convert_args + (local_thumb,)))
 
-    return path.join(relpath, scaled_name)
+    thumb_dir = make_hdfs_path(collection, True)
+    file = {'file': (local_thumb, open(local_thumb, "rb"))}
+    if not is_hdfs_path_exists(thumb_dir):
+        create_hdfs_dir(thumb_dir)
+
+    upload_to_hdfs(thumb_path, file)
+
+    # Clean up temp files
+    remove(local_orig)
+    remove(local_thumb)
+
+    return thumb_path
 
 
 @route('/static/<path:path>')
@@ -255,12 +290,12 @@ def getfileref():
 @require_token('filename')
 def fileget():
     """Returns the file data of the file indicated by the query parameters."""
-    r = static_file(resolve_file(), root=settings.BASE_DIR)
+    data = b''.join(stream_hdfs_file(resolve_file()))
     download_name = request.query.downloadname
     if download_name:
         download_name = quote(path.basename(download_name).encode('ascii', 'replace'))
-        r.set_header('Content-Disposition', "inline; filename*=utf-8''%s" % download_name)
-    return r
+        response.set_header('Content-Disposition', f"inline; filename*=utf-8''{download_name}")
+    return data
 
 
 @route('/fileupload', method='OPTIONS')
@@ -289,12 +324,9 @@ def fileupload():
         create_hdfs_dir(hdfs_dir)
 
     upload = list(request.files.values())[0]
+    file = {'file': (filename, upload.file, upload.content_type)}
     
-    requests.post(
-        f"http://{settings.BIIMS_API}/api/storage/upload/",
-        data={'path':store_path},
-        files={'file': (filename, upload.file, upload.content_type)}
-    )
+    upload_to_hdfs(store_path, file)
 
     response.content_type = 'text/plain; charset=utf-8'
     return 'Ok.'
