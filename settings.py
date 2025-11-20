@@ -68,4 +68,4 @@ CAN_THUMBNAIL = {
 # SERVER = 'paste' # Requires python-paste package. Fast, and seems to work good.
 SERVER = 'wsgiref'  # For testing. Requires no extra packages.
 
-BIIMS_API=os.getenv("BIIMS_API")
+HDFS_API=os.getenv("HDFS_API")

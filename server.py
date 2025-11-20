@@ -56,21 +56,21 @@ def make_hdfs_path(coll, thumb, filename=""):
 
 def is_hdfs_path_exists(hdfs_path):
     response = requests.get(
-        f"http://{settings.BIIMS_API}/api/storage/exists?path={hdfs_path}"
+        f"{settings.HDFS_API}/exists?path={hdfs_path}"
     )
     return response.ok
 
 
 def create_hdfs_dir(hdfs_dir):
     requests.post(
-        f"http://{settings.BIIMS_API}/api/storage/mkdir/", data={"path": hdfs_dir}
+        f"{settings.HDFS_API}/mkdir/", data={"path": hdfs_dir}
     )
 
 
 def stream_hdfs_file(hdfs_path):
     chunk_size = 1024
     response = requests.get(
-        f"http://{settings.BIIMS_API}/api/storage/download?path={hdfs_path}",
+        f"{settings.HDFS_API}/download?path={hdfs_path}",
         stream=True,
     )
     return response.iter_content(chunk_size=chunk_size)
@@ -78,7 +78,7 @@ def stream_hdfs_file(hdfs_path):
 
 def upload_to_hdfs(hdfs_path, file):
     requests.post(
-        f"http://{settings.BIIMS_API}/api/storage/upload/",
+        f"{settings.HDFS_API}/upload/",
         data={'path':hdfs_path},
         files=file
     )
@@ -349,18 +349,18 @@ def filedelete():
 
     log(f"Deleting {orig_path}")
     requests.post(
-        f"http://{settings.BIIMS_API}/api/storage/delete/", data={"path": orig_path}
+        f"{settings.HDFS_API}/delete/", data={"path": orig_path}
     )
 
     prefix = filename.split('.att')[0]
-    thumb_dir = requests.get(f"http://{settings.BIIMS_API}/api/storage/list?path={thumb_dir_path}").json()
+    thumb_dir = requests.get(f"{settings.HDFS_API}/list?path={thumb_dir_path}").json()
 
     for path_info in thumb_dir["data"]:
         if not path_info["is_file"]:
             continue
         if path_info["basename"].startswith(prefix):
             requests.post(
-                f"http://{settings.BIIMS_API}/api/storage/delete/", data={"path": path_info["path"]}
+                f"{settings.HDFS_API}/delete/", data={"path": path_info["path"]}
             )
 
     response.content_type = 'text/plain; charset=utf-8'
