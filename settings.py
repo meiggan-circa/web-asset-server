@@ -49,7 +49,7 @@ COLLECTION_DIRS = {
 }
 
 # Base directory for all attachments.
-BASE_DIR = '/user/spark/specify/attachments/'
+BASE_DIR = '/specify/attachments/'
 
 # Originals and thumbnails are stored in separate directories.
 THUMB_DIR = 'thumbnails'
