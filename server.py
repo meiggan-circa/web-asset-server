@@ -207,6 +207,10 @@ def resolve_file():
     thumb_p = (request.query['type'] == "T")
     collection = request.query.coll
     filename = request.query.filename
+    orig_path = make_hdfs_path(collection, False, filename)
+
+    if not thumb_p:
+        return orig_path
 
     scale = int(request.query.scale)
     mimetype, encoding = guess_type(filename)
@@ -216,13 +220,9 @@ def resolve_file():
     if mimetype in ('application/pdf', 'image/tiff'):
         # use PNG for PDF thumbnails
         ext = '.png'
+
     thumb_name = f"{root}_{scale}{ext}"
-
-    orig_path = make_hdfs_path(collection, False, filename)
     thumb_path = make_hdfs_path(collection, True, thumb_name)
-
-    if not thumb_p:
-        return orig_path
 
     if hdfs_path_exists(thumb_path):
         log(f"Serving cached thumbnail: {thumb_path}")
