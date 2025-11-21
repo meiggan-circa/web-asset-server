@@ -32,58 +32,6 @@ def log(msg):
         print(msg)
 
 
-def make_hdfs_path(coll, thumb, filename=""):
-    """
-    Build HDFS path for given collection, thumb/orig, and filename.
-    """
-    try:
-        coll_dir = settings.COLLECTION_DIRS[coll]
-    except KeyError:
-        abort(404, f"Unknown collection: {coll!r}")
-
-    subdir = settings.THUMB_DIR if thumb else settings.ORIG_DIR
-
-    parts = [settings.BASE_DIR, coll_dir, subdir]
-    if filename:
-        parts.append(filename)
-
-    hdfs_path = '/'.join(p.strip('/') for p in parts)
-    # Ensure it starts with /
-    if not hdfs_path.startswith('/'):
-        hdfs_path = '/' + hdfs_path
-    return hdfs_path
-
-
-def is_hdfs_path_exists(hdfs_path):
-    response = requests.get(
-        f"{settings.HDFS_API}/exists?path={hdfs_path}"
-    )
-    return response.ok
-
-
-def create_hdfs_dir(hdfs_dir):
-    requests.post(
-        f"{settings.HDFS_API}/mkdir/", data={"path": hdfs_dir}
-    )
-
-
-def stream_hdfs_file(hdfs_path):
-    chunk_size = 1024
-    response = requests.get(
-        f"{settings.HDFS_API}/download?path={hdfs_path}",
-        stream=True,
-    )
-    return response.iter_content(chunk_size=chunk_size)
-
-
-def upload_to_hdfs(hdfs_path, file):
-    requests.post(
-        f"{settings.HDFS_API}/upload/",
-        data={'path':hdfs_path},
-        files=file
-    )
-
-
 def generate_token(timestamp, filename):
     """Generate the auth token for the given filename and timestamp.
     This is for comparing to the client submited token.
@@ -197,6 +145,58 @@ def allow_cross_origin(func):
     return wrapper
 
 
+def make_hdfs_path(coll, thumb, filename=""):
+    """
+    Build HDFS path for given collection, thumb/orig, and filename.
+    """
+    try:
+        coll_dir = settings.COLLECTION_DIRS[coll]
+    except KeyError:
+        abort(404, f"Unknown collection: {coll!r}")
+
+    subdir = settings.THUMB_DIR if thumb else settings.ORIG_DIR
+
+    parts = [settings.BASE_DIR, coll_dir, subdir]
+    if filename:
+        parts.append(filename)
+
+    hdfs_path = '/'.join(p.strip('/') for p in parts)
+    # Ensure it starts with /
+    if not hdfs_path.startswith('/'):
+        hdfs_path = '/' + hdfs_path
+    return hdfs_path
+
+
+def hdfs_path_exists(hdfs_path):
+    response = requests.get(
+        f"{settings.HDFS_API}/exists?path={hdfs_path}"
+    )
+    return response.ok
+
+
+def create_hdfs_dir(hdfs_dir):
+    requests.post(
+        f"{settings.HDFS_API}/mkdir/", data={"path": hdfs_dir}
+    )
+
+
+def stream_hdfs_file(hdfs_path):
+    chunk_size = 1024
+    response = requests.get(
+        f"{settings.HDFS_API}/download?path={hdfs_path}",
+        stream=True,
+    )
+    return response.iter_content(chunk_size=chunk_size)
+
+
+def upload_to_hdfs(hdfs_path, file):
+    requests.post(
+        f"{settings.HDFS_API}/upload/",
+        data={'path':hdfs_path},
+        files=file
+    )
+
+
 def resolve_file():
     """Inspect the request object to determine the file being requested.
     If the request is for a thumbnail and it has not been generated, do
@@ -224,13 +224,13 @@ def resolve_file():
     if not thumb_p:
         return orig_path
 
-    if is_hdfs_path_exists(thumb_path):
+    if hdfs_path_exists(thumb_path):
         log(f"Serving cached thumbnail: {thumb_path}")
         return thumb_path
 
     # To generate thumbnail, originals file is needed
     # Fetch original from HDFS first
-    if not is_hdfs_path_exists(orig_path):
+    if not hdfs_path_exists(orig_path):
         abort(404, f"Missing original: {orig_path}")
 
     # Store original in local temp dir
@@ -255,7 +255,7 @@ def resolve_file():
 
     thumb_dir = make_hdfs_path(collection, True)
     file = {'file': (local_thumb, open(local_thumb, "rb"))}
-    if not is_hdfs_path_exists(thumb_dir):
+    if not hdfs_path_exists(thumb_dir):
         create_hdfs_dir(thumb_dir)
 
     upload_to_hdfs(thumb_path, file)
@@ -320,7 +320,7 @@ def fileupload():
     if thumb_p:
         return 'Ignoring thumbnail upload!'
 
-    if not is_hdfs_path_exists(hdfs_dir):
+    if not hdfs_path_exists(hdfs_dir):
         create_hdfs_dir(hdfs_dir)
 
     upload = list(request.files.values())[0]
@@ -344,7 +344,7 @@ def filedelete():
     orig_path = make_hdfs_path(collection, False, filename)
     thumb_dir_path = make_hdfs_path(collection, True)
 
-    if not is_hdfs_path_exists(orig_path):
+    if not hdfs_path_exists(orig_path):
         abort(404)
 
     log(f"Deleting {orig_path}")
