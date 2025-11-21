@@ -21,6 +21,9 @@ services:
     restart: unless-stopped
     build: .
     init: true
+    volumes:
+      - './settings.py:/home/specify/settings.py'
+      - './server.py:/home/specify/server.py'
     env_file: .env
     ports:
       - "8100:80"
