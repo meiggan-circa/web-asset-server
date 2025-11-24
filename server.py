@@ -11,7 +11,7 @@ import exifread
 import hmac
 import json
 import time
-from sh import convert
+from sh import ErrorReturnCode, convert
 
 import settings
 import requests
@@ -217,12 +217,14 @@ def resolve_file():
     assert mimetype in settings.CAN_THUMBNAIL
 
     root, ext = path.splitext(filename)
+
     if mimetype in ('application/pdf', 'image/tiff'):
         # use PNG for PDF thumbnails
         ext = '.png'
 
     thumb_name = f"{root}_{scale}{ext}"
     thumb_path = make_hdfs_path(collection, True, thumb_name)
+    thumb_fallback = "./assets/thumbnail_fallback.png"
 
     if hdfs_path_exists(thumb_path):
         log(f"Serving cached thumbnail: {thumb_path}")
@@ -251,10 +253,18 @@ def resolve_file():
 
     # Generate thumbnail locally then store in HDFS
     log(f"Scaling thumbnail to {scale}")
-    convert(input_spec, *(convert_args + (local_thumb,)))
+
+    try:
+        convert(input_spec, *(convert_args + (local_thumb,)))
+    except ErrorReturnCode:
+        log("Thumbnail generation failed, using fallback")
+
+        if len(convert_args) > 2: convert_args = convert_args[:2]
+        convert(thumb_fallback, *(convert_args + (local_thumb,)))
 
     thumb_dir = make_hdfs_path(collection, True)
     file = {'file': (local_thumb, open(local_thumb, "rb"))}
+
     if not hdfs_path_exists(thumb_dir):
         create_hdfs_dir(thumb_dir)
 
