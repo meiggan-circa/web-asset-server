@@ -22,6 +22,7 @@ COPY --chown=specify:specify requirements.txt .
 RUN python3.12 -m venv ve && ve/bin/pip install --no-cache-dir -r requirements.txt
 
 COPY --chown=specify:specify *.py views ./
+COPY --chown=specify:specify assets ./assets/
 
 RUN mkdir -p /home/specify/attachments/
 
