@@ -1,6 +1,7 @@
 from collections import defaultdict, OrderedDict
 from functools import wraps
 from glob import glob
+from io import BytesIO
 from mimetypes import guess_type
 from os import path, mkdir, remove
 import tempfile
@@ -381,20 +382,22 @@ def filedelete():
 @require_token('filename')
 def getmetadata():
     """Provides access to EXIF metadata."""
-    storename = request.query.filename
-    basepath = path.join(settings.BASE_DIR, get_rel_path(request.query.coll, thumb_p=False))
-    pathname = path.join(basepath, storename)
+    collection = request.query.coll
+    filename = request.query.filename
     datatype = request.query.dt
+    orig_path = make_hdfs_path(collection, False, filename)
 
-    if not path.exists(pathname):
+    if not hdfs_path_exists(orig_path):
         abort(404)
 
-    with open(pathname, 'rb') as f:
-        try:
-            tags = exifread.process_file(f)
-        except:
-            log("Error reading exif data.")
-            tags = {}
+    data = b''.join(stream_hdfs_file(orig_path))
+    file = BytesIO(data)
+
+    try:
+        tags = exifread.process_file(file)
+    except:
+        log("Error reading exif data.")
+        tags = {}
 
     if datatype == 'date':
         try:
@@ -402,7 +405,7 @@ def getmetadata():
         except KeyError:
             abort(404, 'DateTime not found in EXIF')
 
-    data = defaultdict(dict)
+    out = defaultdict(dict)
     for key, value in list(tags.items()):
         parts = key.split()
         if len(parts) < 2: continue
@@ -411,13 +414,13 @@ def getmetadata():
         except TypeError:
             v = repr(value)
 
-        data[parts[0]][parts[1]] = str(v)
+        out[parts[0]][parts[1]] = str(v)
 
     response.content_type = 'application/json'
-    data = [OrderedDict((('Name', key), ('Fields', value)))
-            for key, value in list(data.items())]
+    result = [OrderedDict((('Name', key), ('Fields', value)))
+            for key, value in list(out.items())]
 
-    return json.dumps(data, indent=4)
+    return json.dumps(result, indent=4)
 
 
 @route('/testkey')
