@@ -1,9 +1,9 @@
 services:
 
-  original:
-    container_name: specify-asset-server-original
+  prod:
+    container_name: specify-asset-server-prod
     restart: unless-stopped
-    image: web-asset-server-original
+    image: web-asset-server-prod
     init: true
     volumes:
      - "attachments:/home/specify/attachments"
