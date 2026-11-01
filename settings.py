@@ -49,7 +49,7 @@ COLLECTION_DIRS = {
 }
 
 # Base directory for all attachments.
-BASE_DIR = '/specify/attachments/'
+BASE_DIR = '/'
 
 # Originals and thumbnails are stored in separate directories.
 THUMB_DIR = 'thumbnails'

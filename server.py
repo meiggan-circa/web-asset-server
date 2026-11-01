@@ -179,25 +179,32 @@ def make_hdfs_path(coll, thumb, filename=""):
 
 
 def hdfs_path_exists(hdfs_path):
-    response = requests.get(f"{settings.HDFS_API}/exists?path={hdfs_path}")
-    return response.ok
+    response = requests.get(f"{settings.HDFS_API}/exists", params={"path": hdfs_path})
 
+    if response.status_code == 404:
+        return False
 
-def create_hdfs_dir(hdfs_dir):
-    requests.post(f"{settings.HDFS_API}/mkdir/", data={"path": hdfs_dir})
+    response.raise_for_status()
+    return True
 
 
 def stream_hdfs_file(hdfs_path):
-    chunk_size = 1024
     response = requests.get(
-        f"{settings.HDFS_API}/download?path={hdfs_path}",
+        f"{settings.HDFS_API}/download",
+        params={"path": hdfs_path},
         stream=True,
     )
-    return response.iter_content(chunk_size=chunk_size)
+
+    response.raise_for_status()
+    return response.iter_content(chunk_size=64 * 1024)
 
 
 def upload_to_hdfs(hdfs_path, file):
-    requests.post(f"{settings.HDFS_API}/upload/", data={"path": hdfs_path}, files=file)
+    requests.post(
+        f"{settings.HDFS_API}/upload/",
+        data={"path": hdfs_path},
+        files=file
+    ).raise_for_status()
 
 
 def resolve_file():
@@ -273,9 +280,6 @@ def resolve_file():
     thumb_dir = make_hdfs_path(collection, True)
     file = {"file": (local_thumb, open(local_thumb, "rb"))}
 
-    if not hdfs_path_exists(thumb_dir):
-        create_hdfs_dir(thumb_dir)
-
     upload_to_hdfs(thumb_path, file)
 
     # Clean up temp files
@@ -342,9 +346,6 @@ def fileupload():
     if thumb_p:
         return "Ignoring thumbnail upload!"
 
-    if not hdfs_path_exists(hdfs_dir):
-        create_hdfs_dir(hdfs_dir)
-
     upload = list(request.files.values())[0]
     file = {"file": (filename, upload.file, upload.content_type)}
 
@@ -370,18 +371,25 @@ def filedelete():
         abort(404)
 
     log(f"Deleting {orig_path}")
-    requests.post(f"{settings.HDFS_API}/delete/", data={"path": orig_path})
+    requests.post(
+        f"{settings.HDFS_API}/delete/",
+        data={"path": orig_path}
+    ).raise_for_status()
 
     prefix = filename.split(".att")[0]
-    thumb_dir = requests.get(f"{settings.HDFS_API}/list?path={thumb_dir_path}").json()
+    list_thumb_dir_response = requests.get(f"{settings.HDFS_API}/list", params={"path": thumb_dir_path})
 
-    for path_info in thumb_dir["data"]:
-        if not path_info["is_file"]:
-            continue
-        if path_info["basename"].startswith(prefix):
-            requests.post(
-                f"{settings.HDFS_API}/delete/", data={"path": path_info["path"]}
-            )
+    if list_thumb_dir_response.status_code != 404:
+        list_thumb_dir_response.raise_for_status()
+        thumb_dir = list_thumb_dir_response.json()
+
+        for path_info in thumb_dir["data"]:
+            if not path_info["is_file"]:
+                continue
+            if path_info["basename"].startswith(prefix):
+                requests.post(
+                    f"{settings.HDFS_API}/delete/", data={"path": path_info["path"]}
+                ).raise_for_status()
 
     response.content_type = "text/plain; charset=utf-8"
     return "Ok."
